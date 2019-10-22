@@ -1,8 +1,8 @@
-import kivy
+from kivy import require
 from kivy.app import App
 from kivy.uix.carousel import Carousel
 
-kivy.require('1.9.0')
+require('1.9.0')
 from kivy.uix.image import AsyncImage,Image
 from kivy.uix.floatlayout import FloatLayout
 
@@ -12,12 +12,7 @@ from kivy.clock import Clock
 from kivy.uix.scatter import Scatter
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.widget import Widget
-#from SensorDispatcher import SensorSubscriber
-from pycallgraph import PyCallGraph
-from pycallgraph.output import GraphvizOutput
-
-with PyCallGraph(output=GraphvizOutput()):
-    code_to_profile()
+from SensorDispatcher import SensorSubscriber
 
 import time
 import json
@@ -27,15 +22,13 @@ from pprint import pprint
 from kivy.core.window import Window
 
 from subprocess import check_output
-#from PIL import image
-
 now = time.time()
 
 class SensorManager(FloatLayout):
  
      
     def __init__(self, **kwargs):
-        self.showMeasurements=False #true-> shows gyro and acceleration false -> show gauge
+        self.showMeasurements=False #True-> shows gyro and acceleration False -> show gauge
 		
         super(SensorManager,self).__init__(**kwargs)
         sensorSubscriber = SensorSubscriber()
@@ -48,17 +41,15 @@ class SensorManager(FloatLayout):
         self.updateLabel()
         
         self.cadran=Image(source="cadran.png",size_hint=(0,0))
-        
         self.add_widget(self.cadran)
         
         self.upsidedown=Image(source="upsidedowncar.jpg",size_hint=(0,0))
-        
         self.add_widget(self.upsidedown)
         
         self.lowbattery=Image(source="lowbattery.jpg",size_hint=(0,0))
         self.add_widget(self.lowbattery)
-        
         self.widgetSize=Window.size
+        
         self.container = Scatter(size=self.widgetSize)
         self.needle=Image(source="needle.png",size=(0,0))
         self.container.add_widget(self.needle)
@@ -70,10 +61,13 @@ class SensorManager(FloatLayout):
         self.colorflag=1-self.colorflag
         return [self.colorflag,1-self.colorflag,0,1]
         
-    	        
+    def hideWidgets(self,widgets):
+        for w in widgets:
+            w.size=(0,0)
+            w.size_hint=(0,0)	        
     
     def sensorValues(self, sensor):
-        self.setSizesToZero([self.upsidedown])
+        self.hideWidgets([self.upsidedown])
         #self.upsidedown.size_hint=(0,0)
         sign = 'Acceleration:'
         sign2 = 'Gyroscope:'
@@ -94,17 +88,12 @@ class SensorManager(FloatLayout):
         self.label.color=[1,1,1,1]
         self.label.text = labelText
     
-    def setSizesToZero(self,widgets):
-        for w in widgets:
-            w.size=(0,0)
-            w.size_hint=(0,0)
-	
     def show_ip(self):
         self.label.text="ipadress: "+check_output(['hostname','-I']).decode('utf-8')
         self.label.font_size=50
         
     def lowVoltage(self):
-        self.setSizesToZero([self.cadran,self.container,self.upsidedown])
+        self.hideWidgets([self.cadran,self.needle,self.upsidedown])
         self.label.text="Low Voltage!!!!!!!"
         self.label.font_size=100
         self.label.pos_hint={"x":0,"y":-.3}
@@ -114,7 +103,7 @@ class SensorManager(FloatLayout):
         self.lowbattery.pos_hint={"x":0,"y":.3}
         
     def tilted(self):
-        self.setSizesToZero([self.cadran,self.needle])
+        self.hideWidgets([self.cadran,self.needle])
         self.label.text="Bitte Fahrzeug ausrichten"
         self.label.font_size=60
         self.label.pos_hint={"x":0,"y":-.2}
@@ -126,7 +115,7 @@ class SensorManager(FloatLayout):
         
     def showGauge(self):
         self.label.text=""
-        self.setSizesToZero([self.upsidedown])
+        self.hideWidgets([self.upsidedown])
         self.cadran.size_hint=(1,1)
         self.needle.size=self.widgetSize
         self.rotateNeedle(int(time.time())%21*5)
@@ -134,7 +123,7 @@ class SensorManager(FloatLayout):
     def rotateNeedle(self,speed):
         minValue=0
         maxValue=100
-        self.add_widget(Label(text=str(minValue),pos_hint={"x":-.4}))
+        #self.add_widget(Label(text=str(minValue),pos_hint={"x":-.4}))
         if speed<minValue or speed>maxValue:
             raise ValueError("can only display values between {} and {}",minValue, maxValue)
         self.container.size=Window.size
@@ -142,13 +131,13 @@ class SensorManager(FloatLayout):
     
         
     def updateLabel(self):
-        #self.img.reload()
         sensor = self.getJsonDict()
         #print(sensor)
-        print(os.popen("vcgencmd get_throttled").readline().replace("throttled=0x",""),end='')
-        if time.time()<self.opfer+2:
+        state=os.popen("vcgencmd get_throttled").readline()
+        #print(state.replace("throttled=0x",""),end='')
+        if time.time()<self.opfer+8:
             self.show_ip()
-        elif "50005" in os.popen("vcgencmd get_throttled").readline():
+        elif "70005" in state or "50005" in state:
             self.lowVoltage()
         elif sensor['acceleration'][2]/800*9.81<8:
             self.tilted()
@@ -164,15 +153,11 @@ class SensorManager(FloatLayout):
     def getJsonDict(self):
         return json.loads(self.jsonVar)
 
-       
-
 class CarouselApp(App):
     def build(self):
         return SensorManager()
-        
- 
  
 if __name__=="__main__":
-    #Window.fullscreen = True
+    Window.fullscreen = True
     CarouselApp().run()
     
